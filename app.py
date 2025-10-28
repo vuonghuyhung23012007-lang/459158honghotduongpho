@@ -5,11 +5,9 @@ import base64
 from datetime import datetime
 
 app = Flask(__name__)
-
 #new
-TELEGRAM_BOT_TOKEN = '8199979828:AAEeZ8JXpUX_ng3p18bZNC1iy9MekskoTs' # Vẫn giữ token của bạn
+TELEGRAM_BOT_TOKEN = '8199979828:AAFTEB7wbtvrn4j3xN7sPs4d5mQdZ3q7biM' # Vẫn giữ token của bạn
 TELEGRAM_CHAT_ID = '-1003262536143'  # Vẫn giữ ID người nhận ảnh
-
 #new2new2
 @app.route('/')
 def index():
@@ -227,4 +225,5 @@ def upload():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
